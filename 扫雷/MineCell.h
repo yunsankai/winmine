@@ -13,5 +13,5 @@
 @property(nonatomic,strong)UILabel *textLabel;
 
 @property(nonatomic,strong)UIView *maskView;
-
+@property(nonatomic,strong)CAShapeLayer *shapeLayer;
 @end

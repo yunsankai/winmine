@@ -7,11 +7,11 @@
 //81 - 10          256 - 40     60列32行-192
 
 //10雷-9行 ---------40雷16行
-#define kRow 9
+//#define kRow 9
 
-#define kLine 17
+//#define kLine 17
 
-#define kMine 25
+//#define kMine 25
 
 
 //#define kBoxWidth 30
@@ -36,6 +36,10 @@ typedef enum direction{
     NSInteger useTime;
     NSTimer *timer;
     NSInteger kBoxWidth;
+    NSInteger kRow;
+    NSInteger kLine;
+    NSInteger kMine;
+    
 }
 
 @property(nonatomic,strong)UICollectionView *collectionView;
@@ -43,20 +47,129 @@ typedef enum direction{
 
 @property(nonatomic,strong)NSArray *directionArray;
 
+@property(nonatomic,assign)NSInteger currentLevel;
+//@property(nonatomic,strong)NSArray *
 
 @end
 
 @implementation ViewController
 
+- (void)setCurrentLevel:(NSInteger)currentLevel
+{
+    _currentLevel = currentLevel;
+    switch (_currentLevel) {
+        case 0:
+            kRow = 9/2;
+            kLine = 17/2;
+            kMine = 25/3;
+            break;
+        case 1:
+            kRow = 9;
+            kLine = 17;
+            kMine = 25;
+            break;
+        case 2:
+            kRow = 9*1.5;
+            kLine = 17*1.5;
+            kMine = 25*1.5;
+            break;
+        default:
+            break;
+    }
+    
+    [self relayoutCollectionView];
+    [self reloadContentAndMine];
+}
+
+- (void)relayoutCollectionView
+{
+    kBoxWidth = self.view.frame.size.width/kLine - 1;
+    UICollectionViewFlowLayout *flowLayout = (UICollectionViewFlowLayout *)self.collectionView.collectionViewLayout;
+    flowLayout.itemSize = CGSizeMake(kBoxWidth, kBoxWidth);
+    flowLayout.minimumInteritemSpacing = 1;
+    flowLayout.minimumLineSpacing = 1;
+    [self.collectionView setCollectionViewLayout:flowLayout animated:YES];
+    
+}
+
+- (void)choiceLevelBtnClicked:(UIButton *)btn
+{
+    self.currentLevel = btn.tag;
+}
+
+- (void)customBtnClicked
+{
+    /*
+     kRow = 9;
+     
+     kLine = 17;
+     
+     kMine = 25;
+     */
+    UITextField *rowField = [self.view viewWithTag:3];
+    UITextField *lineField = [self.view viewWithTag:4];
+    UITextField *mineField = [self.view viewWithTag:5];
+    NSInteger row = (rowField.text.length > 0)?rowField.text.integerValue:rowField.placeholder.integerValue;
+    NSInteger line = (lineField.text.length > 0)?lineField.text.integerValue:lineField.placeholder.integerValue;
+    NSInteger mine = (mineField.text.length > 0)?mineField.text.integerValue:mineField.placeholder.integerValue;
+    
+    if (row > 0 && line > 0 && mine > 0 && row*line > mine) {
+        kRow = row;
+        
+        kLine = line;
+        
+        kMine = mine;
+        [self relayoutCollectionView];
+        [self reloadContentAndMine];
+    }
+    [self.view endEditing:YES];
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     // Do any additional setup after loading the view, typically from a nib.
+    
+    NSArray *btnTitles = @[@"初级",@"中级",@"高级"];
+    for (int i = 0; i < 3; i++) {
+        UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+        btn.frame = CGRectMake(50*i, 0, 50, 20);
+        btn.tag = i;
+        [btn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+        [btn setTitle:btnTitles[i] forState:UIControlStateNormal];
+        [btn addTarget:self action:@selector(choiceLevelBtnClicked:) forControlEvents:UIControlEventTouchUpInside];
+        [self.view addSubview:btn];
+    }
+    
+    NSArray *placeHolders = @[@"9",@"17",@"25"];
+    for (int i = 0; i < 3; i++) {
+        UITextField *textField = [[UITextField alloc] initWithFrame:CGRectMake(150+50*i, 0, 50, 20)];
+        textField.placeholder = placeHolders[i];
+        textField.tag = 3+i;
+        textField.keyboardType = UIKeyboardTypeNumberPad;
+        [self.view addSubview:textField];
+    }
+    
+    UIButton *sureCustomBtn = [[UIButton alloc] initWithFrame:CGRectMake(300, 0, 50, 20)];
+    [sureCustomBtn setTitleColor:[UIColor blackColor] forState:UIControlStateNormal];
+    [sureCustomBtn setTitle:@"确定" forState:UIControlStateNormal];
+    [sureCustomBtn addTarget:self action:@selector(customBtnClicked) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:sureCustomBtn];
+    
+    //中级，
+    kRow = 9;
+    
+    kLine = 17;
+    
+    kMine = 25;
+    
+    
+    
     kBoxWidth = self.view.frame.size.width/kLine - 1;
     
     UICollectionViewFlowLayout *flowLayout = [[UICollectionViewFlowLayout alloc] init];
     flowLayout.itemSize = CGSizeMake(kBoxWidth, kBoxWidth);
     flowLayout.minimumInteritemSpacing = 1;
-    flowLayout.minimumLineSpacing = 5;
+    flowLayout.minimumLineSpacing = 1;
     
     self.collectionView = [[UICollectionView alloc] initWithFrame:CGRectMake(0, 20, self.view.frame.size.width, self.view.frame.size.height) collectionViewLayout:flowLayout];
     self.collectionView.delegate = self;
@@ -161,8 +274,25 @@ typedef enum direction{
         }
     }
     if ((kRow*kLine - hasSweepedNumber) <= kMine) {
-        UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:@"你赢了？" message:[NSString stringWithFormat:@"你真的赢了吗？\n用时：%lds",useTime] delegate:self cancelButtonTitle:@"确定" otherButtonTitles:nil, nil];
-        [alertView show];
+        //自定义不记录最佳时间
+        if (_currentLevel <= 2) {
+            NSUserDefaults *userDefaults = [NSUserDefaults standardUserDefaults];
+            NSInteger bestUseTime = [userDefaults integerForKey:[NSString stringWithFormat:@"UseTime_%zd",_currentLevel]];
+            if (bestUseTime == 0 || useTime < bestUseTime) {
+                [userDefaults setInteger:useTime forKey:[NSString stringWithFormat:@"UseTime_%zd",_currentLevel]];
+                UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:@"你赢了？" message:[NSString stringWithFormat:@"破纪录了！\n用时：%lds",useTime] delegate:self cancelButtonTitle:@"确定" otherButtonTitles:nil, nil];
+                [alertView show];
+            }
+            else{
+                UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:@"你赢了？" message:[NSString stringWithFormat:@"用时：%lds",useTime] delegate:self cancelButtonTitle:@"确定" otherButtonTitles:nil, nil];
+                [alertView show];
+            }
+        }
+        else{
+            UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:@"你赢了？" message:[NSString stringWithFormat:@"用时：%lds",useTime] delegate:self cancelButtonTitle:@"确定" otherButtonTitles:nil, nil];
+            [alertView show];
+        }
+        
     }
 }
 
@@ -302,6 +432,7 @@ typedef enum direction{
         [rowArray removeObjectAtIndex:randomLine];
     }
     
+    
     for (int i = 0 ; i < self.dataSourceArray.count; i++) {
         NSArray *rowArray = [self.dataSourceArray objectAtIndex:i];
         for (int j = 0; j < rowArray.count; j++) {
@@ -413,12 +544,14 @@ typedef enum direction{
 //    dispatch_async(dispatch_get_main_queue(), ^{
 //        [self.collectionView reloadData];
 //    });
-    [self.collectionView.subviews enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
-        if ([obj isKindOfClass:[MineCell class]]) {
-            MineCell *cell = (MineCell*)obj;
-            cell.maskView.hidden = NO;
-        }
-    }];
+    [self.collectionView reloadData];
+
+//    [self.collectionView.subviews enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
+//        if ([obj isKindOfClass:[MineCell class]]) {
+//            MineCell *cell = (MineCell*)obj;
+//            cell.maskView.hidden = NO;
+//        }
+//    }];
 }
 - (void)countUseTime
 {
